@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -36,6 +37,9 @@ func main() {
 
 	// Create Gin router
 	r := gin.Default()
+
+	// Enable CORS for all origins (for local dev and Docker frontend)
+	r.Use(cors.Default())
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
