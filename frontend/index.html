@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartSpreadsheet - AI-Powered Spreadsheet Analysis</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">📊 SmartSpreadsheet</h1>
+                <p class="subtitle">AI-Powered Spreadsheet Analysis</p>
+                <div class="status-indicator" id="statusIndicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Ready</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Input Section -->
+            <section class="input-section">
+                <h2>📥 Input Your Data</h2>
+                <div class="input-controls">
+                    <button class="btn btn-secondary" id="sampleDataBtn">📋 Load Sample Data</button>
+                    <button class="btn btn-secondary" id="uploadFileBtn">📁 Upload CSV File</button>
+                    <button class="btn btn-secondary" id="clearDataBtn">🗑️ Clear</button>
+                    <input type="file" id="fileInput" accept=".csv,.txt" style="display: none;">
+                </div>
+                
+                <div class="input-area">
+                    <textarea 
+                        id="dataInput" 
+                        placeholder="Paste your CSV data here...&#10;&#10;Example:&#10;,Sales,Revenue&#10;Q1,100,10000&#10;Q2,150,15000"
+                        rows="10"
+                    ></textarea>
+                </div>
+
+                <div class="data-preview" id="dataPreview">
+                    <h3>📋 Data Preview</h3>
+                    <div class="preview-table" id="previewTable">
+                        <p class="no-data">No data entered yet. Paste CSV data above to see preview.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Submit Section -->
+            <section class="submit-section">
+                <div class="submit-controls">
+                    <button class="btn btn-primary" id="submitBtn">
+                        <span class="btn-text">🚀 Process with AI</span>
+                        <span class="btn-loading" style="display: none;">⏳ Processing...</span>
+                    </button>
+                    <div class="job-info" id="jobInfo" style="display: none;">
+                        <span class="job-count">Jobs: <span id="jobCount">0</span></span>
+                        <span class="job-progress">Progress: <span id="jobProgress">0%</span></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <h2>📈 AI Analysis Results</h2>
+                <div class="results-controls">
+                    <button class="btn btn-secondary" id="refreshBtn">🔄 Refresh</button>
+                    <button class="btn btn-secondary" id="exportBtn">📤 Export</button>
+                </div>
+                
+                <div class="results-container">
+                    <div class="results-table" id="resultsTable">
+                        <p class="no-results">Processing... Results will appear here.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Toast Notifications -->
+        <div class="toast-container" id="toastContainer"></div>
+    </div>
+
+    <script src="api.js"></script>
+    <script src="app.js"></script>
+</body>
+</html> 

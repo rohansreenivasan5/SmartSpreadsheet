@@ -2,54 +2,112 @@
 
 A local MVP that processes spreadsheets via Go HTTP API, fans out per-cell AI tasks using Redis Streams, and returns results via Redis hashes using a Python microservice for LangChain processing.
 
-## Architecture
+## 🏗️ Architecture
 
 - **Go API Service**: Gin web server + Redis worker (port 8080)
 - **Python Chain Runner**: FastAPI + LangChain + LangSmith (port 8000)  
 - **Redis**: Streams for job distribution, hashes for results (port 6379)
+- **Frontend**: Modern web interface with real-time updates (port 3000)
 
-## Prerequisites
+## 📋 Prerequisites
 
 - Docker and Docker Compose
 - OpenAI API Key
 - LangSmith API Key (optional, for tracing)
 
-## Quick Start
+## 🚀 Quick Start
 
-1. **Clone and setup environment:**
-   ```bash
-   git clone <repository-url>
-   cd SmartSpreadsheet
-   cp .env.example .env
-   ```
+### 1. Clone and Setup
 
-2. **Configure environment variables in `.env`:**
-   ```bash
-   OPENAI_API_KEY=your_openai_api_key_here
-   LANGSMITH_API_KEY=your_langsmith_api_key_here
-   ```
+```bash
+git clone <repository-url>
+cd SmartSpreadsheet
+cp .env.example .env
+```
 
-3. **Start all services:**
-   ```bash
-   docker-compose up --build -d
-   ```
+### 2. Configure Environment Variables
 
-4. **Verify services are running:**
-   ```bash
-   docker-compose ps
-   ```
+Edit `.env` file with your API keys:
 
-5. **Run end-to-end test:**
-   ```bash
-   ./test-e2e.sh
-   ```
+```bash
+# Required
+OPENAI_API_KEY=your_openai_api_key_here
 
-## API Endpoints
+# Optional (for LangSmith tracing)
+LANGSMITH_API_KEY=your_langsmith_api_key_here
+```
+
+### 3. Start All Services
+
+```bash
+docker-compose up --build -d
+```
+
+### 4. Verify Services Are Running
+
+```bash
+docker-compose ps
+```
+
+You should see all services (redis, chain-runner, go-api, frontend) in "Up" status.
+
+### 5. Access the Application
+
+- **Frontend**: http://localhost:3000
+- **Go API**: http://localhost:8080
+- **Chain Runner**: http://localhost:8000
+- **Redis**: localhost:6379
+
+### 6. Test the Complete System
+
+```bash
+# Run automated end-to-end test
+./test-e2e.sh
+
+# Or run manual frontend test
+./test-frontend-manual.sh
+```
+
+## 🖥️ Using the Frontend
+
+### Quick Demo
+
+1. **Open the frontend**: Navigate to http://localhost:3000
+2. **Load sample data**: Click "📋 Load Sample Data" button
+3. **Submit for processing**: Click "🚀 Process with AI" or press Ctrl+Enter
+4. **Monitor progress**: Watch real-time job count and progress updates
+5. **View results**: See AI-generated insights for each cell
+6. **Copy results**: Click "📋 Copy" on any result to copy to clipboard
+7. **Export all**: Click "📤 Export" to download results as JSON
+
+### Features
+
+- **Data Input**: Paste CSV data or upload CSV files
+- **Real-time Preview**: See parsed data in a table format
+- **Progress Tracking**: Live updates on processing status
+- **Results Display**: Clean, organized AI insights
+- **Copy/Export**: Easy sharing and downloading of results
+- **Keyboard Shortcuts**: Ctrl+Enter to submit, Escape to clear
+- **Auto-save**: Input data saved to browser storage
+- **Responsive Design**: Works on desktop, tablet, and mobile
+
+### Data Format
+
+The frontend accepts CSV data in this format:
+
+```csv
+,Column1,Column2,Column3
+Row1,Value1,Value2,Value3
+Row2,Value4,Value5,Value6
+```
+
+## 🔧 API Endpoints
 
 ### Go API Service (Port 8080)
 
 - `GET /health` - Health check
 - `GET /` - Service info
+- `GET /api/v1/redis/test` - Redis connectivity test
 - `POST /api/v1/sheets/:sheetId/run` - Submit spreadsheet for processing
 - `GET /api/v1/sheets/:sheetId/status` - Get processing results
 
@@ -59,118 +117,57 @@ A local MVP that processes spreadsheets via Go HTTP API, fans out per-cell AI ta
 - `GET /` - Service info
 - `POST /chain/run` - Execute LangChain chain
 
-## End-to-End Test Flow
+## 🧪 Testing
 
-### 1. Submit a Spreadsheet for Processing
-
-```bash
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -d '{
-    "table": [
-      ["", "Sales", "Revenue"],
-      ["Q1", "100", "10000"],
-      ["Q2", "150", "15000"],
-      ["Q3", "200", "20000"]
-    ]
-  }' \
-  http://localhost:8080/api/v1/sheets/test123/run
-```
-
-**Expected Response:**
-```json
-{
-  "jobCount": 6,
-  "message": "Sheet processing started",
-  "sheetId": "test123",
-  "status": "accepted"
-}
-```
-
-### 2. Check Processing Status and Results
+### Automated Testing
 
 ```bash
-curl http://localhost:8080/api/v1/sheets/test123/status
+# Test the complete backend pipeline
+./test-e2e.sh
+
+# Test frontend functionality
+./test-frontend.sh
+
+# Manual testing guide
+./test-frontend-manual.sh
 ```
 
-**Expected Response:**
-```json
-{
-  "results": {
-    "1:2": "{\"result\":\"The cell value '100' appears to be a numerical value representing sales data...\",\"status\":\"completed\",\"timestamp\":1751152891,\"trace_id\":\"not-available\"}",
-    "1:3": "{\"result\":\"The cell value '10000' represents a revenue figure...\",\"status\":\"completed\",\"timestamp\":1751152893,\"trace_id\":\"not-available\"}",
-    "2:2": "{\"result\":\"The cell value '150' indicates an increase in sales...\",\"status\":\"completed\",\"timestamp\":1751152895,\"trace_id\":\"not-available\"}",
-    "2:3": "{\"result\":\"The cell value '15000' represents revenue...\",\"status\":\"completed\",\"timestamp\":1751152897,\"trace_id\":\"not-available\"}",
-    "3:2": "{\"result\":\"The cell value '200' shows continued growth...\",\"status\":\"completed\",\"timestamp\":1751152899,\"trace_id\":\"not-available\"}",
-    "3:3": "{\"result\":\"The cell value '20000' represents the highest revenue...\",\"status\":\"completed\",\"timestamp\":1751152901,\"trace_id\":\"not-available\"}"
-  }
-}
-```
+### Manual Testing
 
-## Complete End-to-End Test Script
+1. **Test Backend Services**:
+   ```bash
+   curl http://localhost:8080/health
+   curl http://localhost:8000/health
+   curl http://localhost:8080/api/v1/redis/test
+   ```
 
-```bash
-#!/bin/bash
+2. **Test Sheet Processing**:
+   ```bash
+   # Submit a sheet
+   curl -X POST -H "Content-Type: application/json" \
+     -d '{"table":[["","Sales","Revenue"],["Q1","100","10000"],["Q2","150","15000"]]}' \
+     http://localhost:8080/api/v1/sheets/test123/run
+   
+   # Check results
+   curl http://localhost:8080/api/v1/sheets/test123/status
+   ```
 
-echo "🚀 Starting SmartSpreadsheet MVP End-to-End Test"
-echo "================================================"
+3. **Test Frontend**: Open http://localhost:3000 and use the web interface
 
-# Test 1: Health checks
-echo "📋 Testing service health..."
-curl -s http://localhost:8080/health | jq .
-curl -s http://localhost:8000/health | jq .
+## 📁 Project Structure
 
-# Test 2: Submit spreadsheet
-echo ""
-echo "📊 Submitting spreadsheet for processing..."
-RESPONSE=$(curl -s -X POST \
-  -H "Content-Type: application/json" \
-  -d '{
-    "table": [
-      ["", "Sales", "Revenue"],
-      ["Q1", "100", "10000"],
-      ["Q2", "150", "15000"],
-      ["Q3", "200", "20000"]
-    ]
-  }' \
-  http://localhost:8080/api/v1/sheets/e2e-test/run)
-
-echo "Submit Response:"
-echo $RESPONSE | jq .
-
-# Test 3: Wait for processing
-echo ""
-echo "⏳ Waiting for AI processing (10 seconds)..."
-sleep 10
-
-# Test 4: Get results
-echo ""
-echo "📈 Retrieving AI-generated results..."
-curl -s http://localhost:8080/api/v1/sheets/e2e-test/status | jq .
-
-echo ""
-echo "✅ End-to-End Test Complete!"
-```
-
-## How It Works
-
-1. **Sheet Submission**: POST to `/api/v1/sheets/:sheetId/run` with spreadsheet data
-2. **Job Creation**: Go API stores sheet data in Redis and creates jobs for each cell (excluding headers/labels)
-3. **Job Processing**: Go worker reads jobs from Redis Streams and calls Python chain-runner
-4. **AI Processing**: Python service runs LangChain chains with OpenAI LLM
-5. **Result Storage**: Results are stored in Redis hashes with metadata
-6. **Result Retrieval**: GET `/api/v1/sheets/:sheetId/status` returns all processed results
-
-## Development
-
-### Project Structure
 ```
 SmartSpreadsheet/
 ├── README.md
 ├── PLAN.md
+├── FRONTEND_SUMMARY.md
 ├── .env
 ├── .gitignore
 ├── docker-compose.yml
+├── test-e2e.sh
+├── test-frontend.sh
+├── test-frontend-manual.sh
+├── test-data.csv
 ├── go-api/
 │   ├── main.go          # API server + worker goroutine
 │   ├── handlers.go      # HTTP handlers
@@ -178,64 +175,132 @@ SmartSpreadsheet/
 │   ├── redis.go         # Redis utilities
 │   ├── go.mod
 │   └── Dockerfile
-└── chain-runner/
-    ├── app.py           # FastAPI + LangChain service
-    ├── requirements.txt
+├── chain-runner/
+│   ├── app.py           # FastAPI + LangChain service
+│   ├── requirements.txt
+│   └── Dockerfile
+└── frontend/
+    ├── index.html       # Main HTML structure
+    ├── styles.css       # Modern CSS styling
+    ├── app.js          # Main application logic
+    ├── api.js          # API client functions
+    ├── nginx.conf      # Nginx configuration
     └── Dockerfile
 ```
 
+## 🔄 How It Works
+
+1. **Frontend Input**: User uploads/pastes CSV data via web interface
+2. **Sheet Submission**: Frontend sends data to Go API via POST `/api/v1/sheets/:sheetId/run`
+3. **Job Creation**: Go API stores sheet data in Redis and creates jobs for each cell (excluding headers/labels)
+4. **Job Processing**: Go worker reads jobs from Redis Streams and calls Python chain-runner
+5. **AI Processing**: Python service runs LangChain chains with OpenAI LLM
+6. **Result Storage**: Results are stored in Redis hashes with metadata
+7. **Real-time Updates**: Frontend polls for results every 2 seconds
+8. **Results Display**: AI-generated insights displayed in user-friendly format
+
+## 🛠️ Development
+
 ### Local Development
 
-1. **Start services:**
+1. **Start services**:
    ```bash
    docker-compose up -d
    ```
 
-2. **View logs:**
+2. **View logs**:
    ```bash
    docker-compose logs -f go-api
    docker-compose logs -f chain-runner
+   docker-compose logs -f frontend
    ```
 
-3. **Stop services:**
+3. **Rebuild services**:
+   ```bash
+   docker-compose build go-api
+   docker-compose build chain-runner
+   docker-compose build frontend
+   ```
+
+4. **Stop services**:
    ```bash
    docker-compose down
    ```
 
-## Troubleshooting
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | Yes | Your OpenAI API key for LLM processing |
+| `LANGSMITH_API_KEY` | No | LangSmith API key for tracing (optional) |
+| `REDIS_ADDR` | No | Redis address (default: redis:6379) |
+| `CHAIN_RUNNER_URL` | No | Chain runner URL (default: http://chain-runner:8000) |
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **404 errors from chain-runner**: Check `CHAIN_RUNNER_URL` in docker-compose.yml
-2. **Redis connection errors**: Ensure Redis container is healthy
-3. **Missing API keys**: Verify `.env` file has required keys
+1. **Services not starting**:
+   ```bash
+   docker-compose down
+   docker-compose up --build -d
+   ```
 
-### Debug Commands
+2. **API key issues**:
+   - Ensure your `.env` file has the correct `OPENAI_API_KEY`
+   - Check that the API key is valid and has sufficient credits
+
+3. **Redis connection issues**:
+   ```bash
+   docker-compose logs redis
+   ```
+
+4. **Frontend not loading**:
+   - Check if port 3000 is available
+   - Verify nginx configuration in `frontend/nginx.conf`
+
+5. **Processing not working**:
+   ```bash
+   docker-compose logs go-api
+   docker-compose logs chain-runner
+   ```
+
+### Health Checks
 
 ```bash
-# Check service status
-docker-compose ps
+# Check all services
+curl http://localhost:8080/health
+curl http://localhost:8000/health
+curl http://localhost:3000/health
 
-# View service logs
-docker-compose logs go-api
-docker-compose logs chain-runner
-
-# Test Redis connectivity
-docker-compose exec go-api curl http://localhost:8080/api/v1/redis/test
-
-# Check Redis streams manually
-docker-compose exec redis redis-cli XINFO STREAM sheet-jobs-stream
+# Check Redis connectivity
+curl http://localhost:8080/api/v1/redis/test
 ```
 
-## Environment Variables
+## 📊 Performance
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `OPENAI_API_KEY` | OpenAI API key for LLM access | Yes |
-| `LANGSMITH_API_KEY` | LangSmith API key for tracing | No |
-| `REDIS_ADDR` | Redis connection address | No (default: redis:6379) |
-| `CHAIN_RUNNER_URL` | Chain runner service URL | No (default: http://chain-runner:8000) |
+- **Concurrent Processing**: Multiple sheets can be processed simultaneously
+- **Real-time Updates**: Frontend polls for results every 2 seconds
+- **Scalable Architecture**: Redis streams enable horizontal scaling
+- **Efficient Storage**: Results stored with TTL for automatic cleanup
 
-## License
+## 🔒 Security
 
-MIT License 
+- **API Key Protection**: Environment variables for sensitive data
+- **Input Validation**: Server-side validation of all inputs
+- **Error Handling**: Graceful handling of network and processing errors
+- **CORS Configuration**: Proper cross-origin request handling
+
+## 🚀 Production Deployment
+
+For production deployment, consider:
+
+1. **Environment Variables**: Use proper secret management
+2. **SSL/TLS**: Add HTTPS termination
+3. **Monitoring**: Add health checks and logging
+4. **Scaling**: Configure Redis persistence and worker scaling
+5. **Backup**: Implement data backup strategies
+
+## 📝 License
+
+This project is for demonstration purposes. Please ensure compliance with OpenAI's terms of service when using their API. 
