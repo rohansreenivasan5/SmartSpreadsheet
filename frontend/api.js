@@ -61,6 +61,42 @@ class SmartSpreadsheetAPI {
         }
     }
 
+    // Submit autofill request
+    async submitAutofill(rows, cols) {
+        try {
+            const response = await fetch(`${this.baseURL}/api/v1/autofill`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rows, cols })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            throw new Error(`Failed to submit autofill: ${error.message}`);
+        }
+    }
+
+    // Get autofill status and results
+    async getAutofillStatus(autofillId) {
+        try {
+            const response = await fetch(`${this.baseURL}/api/v1/autofill/${autofillId}/status`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            throw new Error(`Failed to get autofill status: ${error.message}`);
+        }
+    }
+
     // Test Redis connectivity
     async testRedis() {
         try {

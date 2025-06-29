@@ -357,4 +357,61 @@ body {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* Spreadsheet Grid Styles */
+.spreadsheet-grid {
+    margin-top: 20px;
+    overflow-x: auto;
+}
+.spreadsheet-grid table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 600px;
+    background: #f8fafc;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(102,126,234,0.08);
+}
+.spreadsheet-grid th, .spreadsheet-grid td {
+    border: 1px solid #e2e8f0;
+    padding: 10px 16px;
+    min-width: 120px;
+    text-align: left;
+    font-size: 1rem;
+    background: white;
+    transition: background 0.2s;
+}
+.spreadsheet-grid th {
+    background: #e9eefb;
+    font-weight: 600;
+    color: #4a5568;
+}
+.spreadsheet-grid td.editable, .spreadsheet-grid th.editable {
+    background: #f7fafc;
+    cursor: pointer;
+}
+.spreadsheet-grid td.editing, .spreadsheet-grid th.editing {
+    background: #fffbe6;
+    outline: 2px solid #667eea;
+}
+.spreadsheet-grid td:focus, .spreadsheet-grid th:focus {
+    outline: 2px solid #667eea;
+}
+.spreadsheet-grid td.loading {
+    background: #f0f5ff;
+    color: #a0aec0;
+}
+.spreadsheet-grid td.error {
+    background: #fff5f5;
+    color: #e53e3e;
+}
+.spreadsheet-grid td.completed {
+    background: #f0fff4;
+    color: #38a169;
+}
+.spreadsheet-hint {
+    margin-top: 10px;
+    color: #718096;
+    font-size: 0.95rem;
+    text-align: left;
 } 

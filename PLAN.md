@@ -1,278 +1,117 @@
-# SmartSpreadsheet MVP - Implementation Plan
+# SmartSpreadsheet 2.0 - AI Spreadsheet Autofill Plan
 
 ## Overview
-Build a local MVP that processes spreadsheets via Go HTTP API, fans out per-cell AI tasks using Redis Streams, and returns results via Redis hashes using a Python microservice for LangChain processing.
+A spreadsheet-like web app where the user enters a list of items (e.g., company names) in the first column and a list of attributes (e.g., "Industry", "CEO") in the first row. The AI automatically fills in the rest of the grid with the appropriate values for each (item, attribute) pair.
 
-## Architecture
-- **Go API Service**: Gin web server + Redis worker (port 8080)
-- **Python Chain Runner**: FastAPI + LangChain + LangSmith (port 8000)
-- **Redis**: Streams for job distribution, hashes for results (port 6379)
+---
 
-KEYS: 
+## Phase 1: UI/UX Overhaul ✅ COMPLETED
 
+### 1.1 Spreadsheet Grid UI
+- [x] Implement an Excel-like grid (custom or with a grid library)
+- [x] First column: Editable cells for user to input items (e.g., company names)
+- [x] First row: Editable cells for user to input attributes/column names
+- [x] All other cells: Initially empty, to be filled by AI
 
+### 1.2 Input Controls
+- [x] Add "Add Row" and "Add Column" buttons
+- [x] Allow pasting a list of items for the first column
+- [x] Allow pasting a list of attributes for the first row
 
-## Phase 1: Project Setup & Infrastructure
+### 1.3 UX Details
+- [x] Highlight cells as they are being processed/filled
+- [x] Show loading spinners or progress indicators in cells
+- [x] Allow editing of first row/column at any time and re-trigger AI fill
 
-### Step 1.1: Create Project Structure ✅
-- [x] Create directory structure
-- [x] Initialize git repository
+---
 
+## Phase 2: Backend/AI Changes ✅ COMPLETED
 
-### Step 1.2: Docker Environment Setup ✅
-- [x] Create docker-compose.yml
-- [x] Create .env template
-- [x] Test basic Docker setup
+### 2.1 API Contract
+- [x] Accept a list of row labels (items) and column labels (attributes)
+- [x] For each (item, attribute) pair, create an AI job to predict the value
 
-### Step 1.3: Redis Service Setup ✅
-- [x] Configure Redis service in docker-compose
-- [x] Test Redis connectivity
-- [x] Verify Redis streams functionality
+### 2.2 Prompt Engineering
+- [x] For each cell, generate a prompt like: "What is the [attribute] of [item]?"
 
-## Phase 2: Python Chain Runner Service
+### 2.3 Job Fan-out
+- [x] Backend creates a job for every cell (excluding first row/column)
+- [x] Results are stored and streamed back to the frontend as they complete
 
-### Step 2.1: Basic FastAPI Setup ✅
-- [x] Create chain-runner/ directory
-- [x] Create requirements.txt
-- [x] Create basic FastAPI app structure
-- [x] Test FastAPI service startup
+**Implementation Notes:**
+- Added new `/api/v1/autofill` endpoint that accepts `{rows, cols}` arrays
+- Added new `/api/v1/autofill/:id/status` endpoint for polling results
+- Updated worker to process both legacy and autofill jobs from separate Redis streams
+- Worker generates prompts like "What is the CEO of Apple?" for each cell
+- Results are stored in Redis hash with format `autofill:{id}:results[row:col]`
 
-### Step 2.2: LangChain Integration ✅
-- [x] Install and configure LangChain
-- [x] Set up OpenAI integration
-- [x] Create PromptTemplate functionality
-- [x] Test basic chain execution
+---
 
-### Step 2.3: LangSmith Integration
-- [ ] Configure LangSmith tracing
-- [ ] Add trace_id to responses
-- [ ] Test tracing functionality
+## Phase 3: Real-Time Results ✅ COMPLETED
 
-### Step 2.4: API Endpoint Implementation ✅
-- [x] Implement POST /chain/run endpoint
-- [x] Add input validation
-- [x] Test endpoint with sample data
-- [x] Verify response format
+### 3.1 Frontend Polling/Streaming
+- [x] As results come in, update the corresponding cell in the grid
+- [x] Show status (loading, error, completed) per cell
 
-## Phase 3: Go API Service
+### 3.2 Export/Copy
+- [x] Allow user to export the filled-in table as CSV/Excel
+- [x] Copy-to-clipboard for the whole table
 
-### Step 3.1: Basic Go Project Setup ✅
-- [x] Create go-api/ directory
-- [x] Initialize Go module
-- [x] Create go.mod and go.sum
-- [x] Set up basic project structure
+**Implementation Notes:**
+- Frontend polls `/api/v1/autofill/:id/status` every 2 seconds
+- Results are parsed and displayed in real-time in the grid
+- Export functionality creates CSV from the completed grid
+- Progress tracking shows completion percentage
 
-### Step 3.2: Gin Web Server Setup ✅
-- [x] Install Gin framework
-- [x] Create basic HTTP server
-- [x] Set up routing structure
-- [x] Test server startup
+---
 
-### Step 3.3: Redis Integration ✅
-- [x] Install Redis Go client
-- [x] Create Redis connection utilities
-- [x] Test Redis connectivity from Go
-- [x] Implement basic Redis operations
+## Phase 4: Polish & Edge Cases
 
-### Step 3.4: API Handlers Implementation
-- [ ] Implement POST /api/v1/sheets/:sheetId/run
-- [ ] Add JSON parsing and validation
-- [ ] Implement Redis data storage
-- [ ] Add job stream creation
-- [ ] Test endpoint with sample data
+### 4.1 Validation
+- [ ] Prevent empty first row/column
+- [ ] Limit max rows/columns for MVP
 
-### Step 3.5: Status Endpoint Implementation
-- [ ] Implement GET /api/v1/sheets/:sheetId/status
-- [ ] Add Redis hash retrieval
-- [ ] Format response JSON
-- [ ] Test status endpoint
+### 4.2 Error Handling
+- [ ] Show errors in cells if AI fails
+- [ ] Allow retry for failed cells
 
-## Phase 4: Go Worker Implementation
+### 4.3 Performance
+- [ ] Batch requests if needed
+- [ ] Show progress bar for large tables
 
-### Step 4.1: Redis Streams Setup ✅
-- [x] Create consumer group on startup
-- [x] Implement stream reading logic
-- [x] Test stream message processing
-- [x] Verify group creation
+---
 
-### Step 4.2: Worker Loop Implementation ✅
-- [x] Implement XREADGROUP loop
-- [x] Add message parsing logic
-- [x] Test worker message consumption
-- [x] Verify stream processing
+## Success Criteria
+- [x] User can input a list of items (rows) and attributes (columns)
+- [x] AI fills in all relevant cells with correct values
+- [x] Real-time updates as cells are filled
+- [x] User can export or copy the completed table
+- [x] UI is intuitive and feels like a spreadsheet
 
-### Step 4.3: Chain Runner Integration
-- [ ] Implement HTTP client for chain-runner
-- [ ] Add request/response handling
-- [ ] Test microservice communication
-- [ ] Verify result processing
+**✅ ALL SUCCESS CRITERIA MET!**
 
-### Step 4.4: Result Storage
-- [ ] Implement Redis hash storage
-- [ ] Add message acknowledgment
-- [ ] Test end-to-end processing
-- [ ] Verify result persistence
+## Testing Results
+- ✅ Backend autofill endpoints working correctly
+- ✅ Worker processing jobs and storing results
+- ✅ Frontend successfully using new autofill workflow
+- ✅ Real-time updates working as cells are filled
+- ✅ Export functionality working
+- ✅ End-to-end test with Tesla/Microsoft data successful
+- ✅ CORS issues resolved for chain-runner service
+- ✅ Frontend initialization errors fixed
+- ✅ End-to-end test with Netflix/Amazon data successful
 
-## Phase 5: Integration & Testing
+## Bug Fixes Applied
+### CORS Issue Resolution
+- **Problem**: Frontend couldn't access chain-runner health endpoint due to CORS policy
+- **Solution**: Added CORS middleware to chain-runner FastAPI app
+- **Implementation**: Added `CORSMiddleware` with allowed origins for localhost:3000
 
-### Step 5.1: End-to-End Testing
-- [ ] Test complete workflow
-- [ ] Verify data flow through all components
-- [ ] Test error handling
-- [ ] Validate response formats
-
-## Phase 6: Frontend Development
-
-### Overview
-Create a simple, single-page web interface that allows users to:
-- Upload/paste spreadsheet data
-- Submit for AI processing
-- View real-time processing status
-- Display AI-generated results in a readable format
-
-### Step 6.1: Frontend Architecture & Setup ✅
-- [x] Create `frontend/` directory structure
-- [x] Set up React/Vue.js or vanilla HTML/CSS/JS
-- [x] Create basic HTML layout with modern CSS
-- [x] Add responsive design for mobile/desktop
-- [x] Set up development server and build process
-
-**Technical Decisions:**
-- **Framework**: Vanilla HTML/CSS/JS for simplicity (no build complexity)
-- **Styling**: Modern CSS with Flexbox/Grid, minimal dependencies
-- **State Management**: Simple JavaScript state management
-- **API Integration**: Fetch API for backend communication
-
-### Step 6.2: Core UI Components ✅
-- [x] **Header**: Title, description, and status indicator
-- [x] **Input Section**: 
-  - Text area for pasting CSV/table data
-  - File upload option for CSV files
-  - "Sample Data" button for quick testing
-  - Data preview/validation
-- [x] **Submit Section**: 
-  - Submit button with loading states
-  - Job count display
-  - Processing progress indicator
-- [x] **Results Section**: 
-  - Results table/grid display
-  - Cell-by-cell AI insights
-  - Export functionality
-  - Refresh button
-
-### Step 6.3: Data Input & Validation ✅
-- [x] Implement CSV parsing (handle comma/tab separated)
-- [x] Add table data validation (check for empty cells, malformed data)
-- [x] Create data preview component (show parsed table)
-- [x] Add input sanitization and error handling
-- [x] Implement "Sample Data" feature with predefined spreadsheets
-
-**Sample Data Examples:**
-```csv
-,Sales,Revenue,Profit
-Q1,100,10000,2000
-Q2,150,15000,3000
-Q3,200,20000,4000
-```
-
-### Step 6.4: API Integration ✅
-- [x] Create API client functions (submit, status, health)
-- [x] Implement polling for status updates (every 2-3 seconds)
-- [x] Add error handling for network issues
-- [x] Create loading states and progress indicators
-- [x] Handle API rate limiting and timeouts
-
-**API Flow:**
-1. User submits data → POST `/api/v1/sheets/:id/run`
-2. Show "Processing..." with job count
-3. Poll GET `/api/v1/sheets/:id/status` every 2-3 seconds
-4. Display results as they complete
-5. Show completion status
-
-### Step 6.5: Results Display ✅
-- [x] Create results table component
-- [x] Parse JSON results and display in readable format
-- [x] Add cell highlighting for completed vs pending results
-- [x] Implement result filtering and search
-- [x] Add copy-to-clipboard functionality
-- [x] Create export options (CSV, JSON)
-
-**Results Format:**
-- Show original cell value
-- Display AI analysis in readable text
-- Include processing timestamp
-- Show completion status
-
-### Step 6.6: User Experience Enhancements ✅
-- [x] Add toast notifications for success/error states
-- [x] Implement keyboard shortcuts (Ctrl+Enter to submit)
-- [x] Add auto-save of input data to localStorage
-- [x] Create responsive design for mobile devices
-- [x] Add dark/light theme toggle
-- [x] Implement accessibility features (ARIA labels, keyboard navigation)
-
-### Step 6.7: Error Handling & Edge Cases ✅
-- [x] Handle network connectivity issues
-- [x] Add retry mechanisms for failed requests
-- [x] Implement graceful degradation
-- [x] Add user-friendly error messages
-- [x] Handle large datasets (show progress, pagination)
-- [x] Add input validation feedback
-
-### Step 6.8: Integration & Testing ✅
-- [x] Test with various data formats and sizes
-- [x] Verify responsive design across devices
-- [x] Test error scenarios and edge cases
-- [x] Validate accessibility compliance
-- [x] Performance testing with large datasets
-- [x] Cross-browser compatibility testing
-
-## Success Criteria ✅
-- [x] `docker-compose up --build` starts all services successfully
-- [x] `curl -X POST /api/v1/sheets/42/run` with valid JSON returns 202
-- [x] `curl GET /api/v1/sheets/42/status` returns AI-generated results
-- [x] All components communicate via Redis streams and hashes
-- [x] LangSmith tracing is functional
-- [x] Frontend provides intuitive spreadsheet upload and result viewing
-- [x] Real-time status updates work correctly
-- [x] Results are displayed in a user-friendly format
-
-## File Structure (Final)
-```
-SmartSpreadsheet/
-├── PLAN.md
-├── README.md
-├── .env
-├── .gitignore
-├── docker-compose.yml
-├── test-e2e.sh
-├── test-frontend.sh
-├── test-frontend-manual.sh
-├── test-data.csv
-├── go-api/
-│   ├── main.go
-│   ├── go.mod
-│   ├── handlers.go
-│   ├── worker.go
-│   ├── redis.go
-│   └── Dockerfile
-├── chain-runner/
-│   ├── app.py
-│   └── requirements.txt
-└── frontend/
-    ├── index.html
-    ├── styles.css
-    ├── app.js
-    ├── api.js
-    ├── nginx.conf
-    └── Dockerfile
-```
-
-## Testing Checklist for Each Step ✅
-- [x] Docker containers start successfully
-- [x] Services can communicate with each other
-- [x] Redis is accessible from all services
-- [x] API endpoints accept and return correct data
-- [x] Worker processes stream messages
-- [x] Chain runner executes LangChain chains
-- [x] Complete workflow functions end-to-end 
+### Frontend Initialization Fix
+- **Problem**: DOM elements not available when setting up event listeners
+- **Solution**: Implemented robust DOM element waiting with timeout
+- **Implementation**: 
+  - Added `waitForElement()` function that polls for DOM elements with timeout
+  - Made `setupEventListeners()` async and wait for all required elements
+  - Added 100ms delay in `initializeApp()` for extra safety
+  - Proper error handling and logging for missing elements 

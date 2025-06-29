@@ -1,8 +1,46 @@
-// Main Application Logic
+// --- Spreadsheet Grid State ---
+class SpreadsheetGrid {
+    constructor(rows = 6, cols = 4) {
+        // Initialize with empty first row/col
+        this.rows = rows;
+        this.cols = cols;
+        this.data = Array.from({ length: rows }, (_, r) =>
+            Array.from({ length: cols }, (_, c) => (r === 0 && c === 0 ? '' : ''))
+        );
+    }
+
+    addRow() {
+        this.data.push(Array(this.cols).fill(''));
+        this.rows++;
+    }
+    
+    addCol() {
+        this.data.forEach(row => row.push(''));
+        this.cols++;
+    }
+    
+    clear() {
+        this.rows = 6;
+        this.cols = 4;
+        this.data = Array.from({ length: this.rows }, (_, r) =>
+            Array.from({ length: this.cols }, (_, c) => (r === 0 && c === 0 ? '' : ''))
+        );
+    }
+    
+    setCell(r, c, value) {
+        this.data[r][c] = value;
+    }
+    
+    getCell(r, c) {
+        return this.data[r][c];
+    }
+}
+
+// --- Main App Logic ---
 class SmartSpreadsheetApp {
     constructor() {
         this.api = new SmartSpreadsheetAPI();
-        this.currentSheetId = null;
+        this.currentAutofillId = null;
         this.pollingInterval = null;
         this.state = {
             isProcessing: false,
@@ -10,17 +48,20 @@ class SmartSpreadsheetApp {
             completedJobs: 0,
             results: {}
         };
-        
-        this.initializeApp();
+        this.grid = new SpreadsheetGrid();
+        this.renderGrid();
     }
 
     async initializeApp() {
         try {
+            // Wait a bit for DOM to be fully ready
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Set up event listeners first (DOM is now loaded)
+            await this.setupEventListeners();
+            
             // Check backend health
             await this.checkBackendHealth();
-            
-            // Set up event listeners
-            this.setupEventListeners();
             
             // Load saved data from localStorage
             this.loadSavedData();
@@ -36,12 +77,8 @@ class SmartSpreadsheetApp {
 
     async checkBackendHealth() {
         try {
-            const [goHealth, chainHealth] = await Promise.all([
-                this.api.checkHealth(),
-                this.api.checkChainRunnerHealth()
-            ]);
-            
-            console.log('Backend health:', { go: goHealth, chain: chainHealth });
+            const goHealth = await this.api.checkHealth();
+            console.log('Backend health:', { go: goHealth });
             return true;
         } catch (error) {
             console.error('Health check failed:', error);
@@ -49,156 +86,156 @@ class SmartSpreadsheetApp {
         }
     }
 
-    setupEventListeners() {
-        // Input controls
-        document.getElementById('sampleDataBtn').addEventListener('click', () => this.loadSampleData());
-        document.getElementById('clearDataBtn').addEventListener('click', () => this.clearData());
-        document.getElementById('uploadFileBtn').addEventListener('click', () => document.getElementById('fileInput').click());
-        document.getElementById('fileInput').addEventListener('change', (e) => this.handleFileUpload(e));
-        
-        // Submit button
-        document.getElementById('submitBtn').addEventListener('click', () => this.submitData());
-        
-        // Results controls
-        document.getElementById('refreshBtn').addEventListener('click', () => this.refreshResults());
-        document.getElementById('exportBtn').addEventListener('click', () => this.exportResults());
-        
-        // Input change handler
-        document.getElementById('dataInput').addEventListener('input', (e) => this.handleInputChange(e));
-        
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
-    }
-
-    handleInputChange(event) {
-        const data = event.target.value;
-        this.updateDataPreview(data);
-        this.saveDataToStorage(data);
-    }
-
-    updateDataPreview(data) {
-        const previewTable = document.getElementById('previewTable');
-        
-        if (!data.trim()) {
-            previewTable.innerHTML = '<p class="no-data">No data entered yet. Paste CSV data above to see preview.</p>';
-            return;
-        }
-
-        try {
-            const tableData = this.parseCSV(data);
-            const html = this.generatePreviewHTML(tableData);
-            previewTable.innerHTML = html;
-        } catch (error) {
-            previewTable.innerHTML = `<p class="no-data" style="color: #f56565;">Error parsing data: ${error.message}</p>`;
-        }
-    }
-
-    parseCSV(csvText) {
-        const lines = csvText.trim().split('\n');
-        return lines.map(line => line.split(',').map(cell => cell.trim()));
-    }
-
-    generatePreviewHTML(tableData) {
-        if (!tableData.length) return '<p class="no-data">No data to preview.</p>';
-
-        let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">';
-        
-        tableData.forEach((row, rowIndex) => {
-            html += '<tr>';
-            row.forEach((cell, colIndex) => {
-                const isHeader = rowIndex === 0;
-                const isLabel = colIndex === 0;
-                const style = `
-                    border: 1px solid #e2e8f0; 
-                    padding: 8px; 
-                    text-align: left;
-                    background: ${isHeader ? '#f7fafc' : isLabel ? '#edf2f7' : 'white'};
-                    font-weight: ${isHeader ? '600' : 'normal'};
-                `;
-                html += `<td style="${style}">${cell || ''}</td>`;
+    async setupEventListeners() {
+        // Wait for DOM elements to be available
+        const waitForElement = (id, timeout = 5000) => {
+            return new Promise((resolve, reject) => {
+                const startTime = Date.now();
+                const checkElement = () => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        resolve(element);
+                    } else if (Date.now() - startTime > timeout) {
+                        reject(new Error(`Element ${id} not found after ${timeout}ms`));
+                    } else {
+                        setTimeout(checkElement, 50);
+                    }
+                };
+                checkElement();
             });
-            html += '</tr>';
-        });
-        
-        html += '</table>';
-        return html;
-    }
-
-    loadSampleData() {
-        const sampleData = `,Sales,Revenue,Profit
-Q1,100,10000,2000
-Q2,150,15000,3000
-Q3,200,20000,4000
-Q4,250,25000,5000`;
-        
-        document.getElementById('dataInput').value = sampleData;
-        this.updateDataPreview(sampleData);
-        this.saveDataToStorage(sampleData);
-        this.showToast('Sample data loaded!', 'success');
-    }
-
-    clearData() {
-        document.getElementById('dataInput').value = '';
-        this.updateDataPreview('');
-        this.saveDataToStorage('');
-        this.showToast('Data cleared!', 'success');
-    }
-
-    async submitData() {
-        const dataInput = document.getElementById('dataInput');
-        const data = dataInput.value.trim();
-        
-        if (!data) {
-            this.showToast('Please enter some data first!', 'warning');
-            return;
-        }
+        };
 
         try {
-            // Parse and validate data
-            const tableData = this.parseCSV(data);
-            if (tableData.length < 2) {
-                this.showToast('Please enter at least 2 rows of data (header + data)', 'warning');
-                return;
-            }
+            // Wait for all required elements
+            const [addRowBtn, addColBtn, clearGridBtn, submitBtn, refreshBtn, exportBtn] = await Promise.all([
+                waitForElement('addRowBtn'),
+                waitForElement('addColBtn'),
+                waitForElement('clearGridBtn'),
+                waitForElement('submitBtn'),
+                waitForElement('refreshBtn'),
+                waitForElement('exportBtn')
+            ]);
 
-            // Generate sheet ID and submit
-            this.currentSheetId = this.api.generateSheetId();
-            this.updateStatus('Submitting...');
+            console.log('All DOM elements found successfully');
+
+            // Grid controls
+            addRowBtn.addEventListener('click', () => {
+                this.grid.addRow();
+                this.renderGrid();
+            });
+            addColBtn.addEventListener('click', () => {
+                this.grid.addCol();
+                this.renderGrid();
+            });
+            clearGridBtn.addEventListener('click', () => {
+                this.grid.clear();
+                this.renderGrid();
+            });
             
-            const response = await this.api.submitSheet(this.currentSheetId, tableData);
+            // Submit button
+            submitBtn.addEventListener('click', () => this.submitAutofill());
             
-            this.state.jobCount = response.jobCount;
-            this.state.completedJobs = 0;
-            this.state.results = {};
+            // Results controls
+            refreshBtn.addEventListener('click', () => this.refreshResults());
+            exportBtn.addEventListener('click', () => this.exportResults());
             
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+            
+        } catch (error) {
+            console.error('Failed to set up event listeners:', error);
+            throw error;
+        }
+    }
+
+    async submitAutofill() {
+        // Extract rows and cols from the grid
+        const rows = [];
+        const cols = [];
+        
+        // Get first column (row labels) - skip first cell
+        for (let r = 1; r < this.grid.rows; r++) {
+            const value = this.grid.getCell(r, 0).trim();
+            if (value) {
+                rows.push(value);
+            }
+        }
+        
+        // Get first row (column labels) - skip first cell
+        for (let c = 1; c < this.grid.cols; c++) {
+            const value = this.grid.getCell(0, c).trim();
+            if (value) {
+                cols.push(value);
+            }
+        }
+        
+        // Validate input
+        if (rows.length === 0) {
+            this.showToast('Please enter at least one item in the first column', 'error');
+            return;
+        }
+        
+        if (cols.length === 0) {
+            this.showToast('Please enter at least one attribute in the first row', 'error');
+            return;
+        }
+        
+        try {
+            this.setState({ isProcessing: true });
+            this.updateStatus('Submitting autofill request...');
+            
+            // Submit autofill request
+            const response = await this.api.submitAutofill(rows, cols);
+            
+            this.currentAutofillId = response.autofillId;
+            this.setState({ 
+                jobCount: response.jobCount,
+                completedJobs: 0,
+                results: {}
+            });
+            
+            this.showToast(`Autofill started! Processing ${response.jobCount} cells...`, 'success');
             this.updateStatus('Processing...');
-            this.showSubmitSection(true);
+            
+            // Show results section and start polling
             this.showResultsSection(true);
-            
-            this.showToast(`Processing started! ${response.jobCount} jobs created.`, 'success');
-            
-            // Start polling for results
             this.startPolling();
             
         } catch (error) {
-            this.showToast(`Submission failed: ${error.message}`, 'error');
+            this.showToast(`Failed to start autofill: ${error.message}`, 'error');
+            this.setState({ isProcessing: false });
             this.updateStatus('Error');
-            console.error('Submit error:', error);
         }
     }
 
-    showSubmitSection(show) {
-        const jobInfo = document.getElementById('jobInfo');
+    setState(newState) {
+        this.state = { ...this.state, ...newState };
+        this.updateUI();
+    }
+
+    updateUI() {
         const submitBtn = document.getElementById('submitBtn');
+        const btnText = submitBtn.querySelector('.btn-text');
+        const btnLoading = submitBtn.querySelector('.btn-loading');
+        const jobInfo = document.getElementById('jobInfo');
+        const jobCount = document.getElementById('jobCount');
+        const jobProgress = document.getElementById('jobProgress');
         
-        if (show) {
-            jobInfo.style.display = 'flex';
+        if (this.state.isProcessing) {
             submitBtn.disabled = true;
-            document.getElementById('jobCount').textContent = this.state.jobCount;
-            this.updateProgress();
+            btnText.style.display = 'none';
+            btnLoading.style.display = 'inline';
+            jobInfo.style.display = 'block';
+            jobCount.textContent = this.state.jobCount;
+            
+            const progress = this.state.jobCount > 0 ? 
+                Math.round((this.state.completedJobs / this.state.jobCount) * 100) : 0;
+            jobProgress.textContent = `${progress}%`;
         } else {
-            jobInfo.style.display = 'none';
             submitBtn.disabled = false;
+            btnText.style.display = 'inline';
+            btnLoading.style.display = 'none';
+            jobInfo.style.display = 'none';
         }
     }
 
@@ -208,34 +245,64 @@ Q4,250,25000,5000`;
     }
 
     startPolling() {
-        if (this.pollingInterval) {
-            clearInterval(this.pollingInterval);
-        }
-        
-        this.pollingInterval = setInterval(async () => {
-            await this.pollResults();
-        }, 2000); // Poll every 2 seconds
+        this.pollingInterval = setInterval(() => this.pollResults(), 2000);
     }
 
     async pollResults() {
-        if (!this.currentSheetId) return;
+        if (!this.currentAutofillId) return;
         
         try {
-            const response = await this.api.getSheetStatus(this.currentSheetId);
-            this.updateResults(response.results);
+            const response = await this.api.getAutofillStatus(this.currentAutofillId);
+            
+            // Parse results and update state
+            const results = {};
+            let completedJobs = 0;
+            
+            Object.entries(response.results).forEach(([key, valueStr]) => {
+                try {
+                    const value = JSON.parse(valueStr);
+                    results[key] = value.result;
+                    completedJobs++;
+                } catch (e) {
+                    console.error('Failed to parse result:', valueStr);
+                }
+            });
+            
+            this.setState({ 
+                results,
+                completedJobs
+            });
+            
+            // Update grid with results
+            this.updateGridWithResults(results);
             
             // Check if all jobs are complete
-            const completedCount = Object.keys(response.results).length;
-            if (completedCount >= this.state.jobCount) {
+            if (completedJobs >= this.state.jobCount) {
                 this.stopPolling();
+                this.setState({ isProcessing: false });
                 this.updateStatus('Complete');
-                this.showToast('All jobs completed!', 'success');
+                this.showToast('Autofill completed!', 'success');
             }
             
         } catch (error) {
             console.error('Polling error:', error);
-            // Don't show error toast for every polling failure
+            this.showToast(`Error checking status: ${error.message}`, 'error');
         }
+    }
+
+    updateGridWithResults(results) {
+        Object.entries(results).forEach(([key, result]) => {
+            const [rowIndex, colIndex] = key.split(':').map(Number);
+            // Add 1 to skip the header row and column
+            const gridRow = rowIndex + 1;
+            const gridCol = colIndex + 1;
+            
+            if (gridRow < this.grid.rows && gridCol < this.grid.cols) {
+                this.grid.setCell(gridRow, gridCol, result);
+            }
+        });
+        
+        this.renderGrid();
     }
 
     stopPolling() {
@@ -243,129 +310,65 @@ Q4,250,25000,5000`;
             clearInterval(this.pollingInterval);
             this.pollingInterval = null;
         }
-        this.showSubmitSection(false);
-    }
-
-    updateResults(results) {
-        this.state.results = results;
-        this.state.completedJobs = Object.keys(results).length;
-        
-        this.updateProgress();
-        this.renderResults();
-    }
-
-    updateProgress() {
-        const progress = this.state.jobCount > 0 ? 
-            Math.round((this.state.completedJobs / this.state.jobCount) * 100) : 0;
-        document.getElementById('jobProgress').textContent = `${progress}%`;
-    }
-
-    renderResults() {
-        const resultsTable = document.getElementById('resultsTable');
-        
-        if (Object.keys(this.state.results).length === 0) {
-            resultsTable.innerHTML = '<p class="no-results">Processing... Results will appear here.</p>';
-            return;
-        }
-
-        let html = '<div style="display: grid; gap: 15px;">';
-        
-        Object.entries(this.state.results).forEach(([cellKey, resultData]) => {
-            try {
-                const result = typeof resultData === 'string' ? JSON.parse(resultData) : resultData;
-                const [row, col] = cellKey.split(':');
-                
-                html += `
-                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h4 style="margin: 0; color: #2d3748;">Cell ${row}:${col}</h4>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <button onclick="app.copyToClipboard('${result.result.replace(/'/g, "\\'")}')" 
-                                        style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer;">
-                                    📋 Copy
-                                </button>
-                                <span style="font-size: 0.8rem; color: #718096;">${new Date(result.timestamp * 1000).toLocaleTimeString()}</span>
-                            </div>
-                        </div>
-                        <div style="background: #f7fafc; padding: 10px; border-radius: 6px; font-size: 0.9rem; line-height: 1.5;">
-                            ${result.result}
-                        </div>
-                    </div>
-                `;
-            } catch (error) {
-                console.error('Error parsing result:', error);
-            }
-        });
-        
-        html += '</div>';
-        resultsTable.innerHTML = html;
-    }
-
-    copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(() => {
-            this.showToast('Copied to clipboard!', 'success');
-        }).catch(() => {
-            // Fallback for older browsers
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            this.showToast('Copied to clipboard!', 'success');
-        });
     }
 
     async refreshResults() {
-        if (!this.currentSheetId) {
-            this.showToast('No active sheet to refresh', 'warning');
-            return;
-        }
-        
-        try {
-            const response = await this.api.getSheetStatus(this.currentSheetId);
-            this.updateResults(response.results);
-            this.showToast('Results refreshed!', 'success');
-        } catch (error) {
-            this.showToast(`Refresh failed: ${error.message}`, 'error');
+        if (this.currentAutofillId) {
+            await this.pollResults();
         }
     }
 
     exportResults() {
-        if (Object.keys(this.state.results).length === 0) {
-            this.showToast('No results to export', 'warning');
-            return;
+        // Create CSV from grid data
+        let csv = '';
+        
+        for (let r = 0; r < this.grid.rows; r++) {
+            const row = [];
+            for (let c = 0; c < this.grid.cols; c++) {
+                const cell = this.grid.getCell(r, c) || '';
+                row.push(`"${cell.replace(/"/g, '""')}"`);
+            }
+            csv += row.join(',') + '\n';
         }
         
-        const dataStr = JSON.stringify(this.state.results, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(dataBlob);
-        link.download = `smartspreadsheet_results_${Date.now()}.json`;
-        link.click();
+        // Download CSV file
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `smartspreadsheet_${Date.now()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
         
         this.showToast('Results exported!', 'success');
     }
 
     updateStatus(status) {
-        const statusText = document.querySelector('.status-text');
-        const statusDot = document.querySelector('.status-dot');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = statusIndicator.querySelector('.status-text');
+        const statusDot = statusIndicator.querySelector('.status-dot');
         
         statusText.textContent = status;
         
         // Update status dot color
-        statusDot.style.background = 
-            status === 'Ready' ? '#48bb78' :
-            status === 'Processing...' ? '#ed8936' :
-            status === 'Complete' ? '#48bb78' :
-            status === 'Error' ? '#f56565' : '#a0aec0';
+        statusDot.className = 'status-dot';
+        if (status === 'Ready') {
+            statusDot.classList.add('ready');
+        } else if (status === 'Processing...') {
+            statusDot.classList.add('processing');
+        } else if (status === 'Complete') {
+            statusDot.classList.add('complete');
+        } else if (status === 'Error') {
+            statusDot.classList.add('error');
+        }
     }
 
     showToast(message, type = 'success') {
         const toastContainer = document.getElementById('toastContainer');
         const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
+        toast.className = `toast toast-${type}`;
         toast.textContent = message;
         
         toastContainer.appendChild(toast);
@@ -379,58 +382,65 @@ Q4,250,25000,5000`;
     }
 
     handleKeyboardShortcuts(event) {
-        // Ctrl+Enter to submit
-        if (event.ctrlKey && event.key === 'Enter') {
+        // Ctrl/Cmd + Enter to submit
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
             event.preventDefault();
-            this.submitData();
-        }
-        
-        // Escape to clear
-        if (event.key === 'Escape') {
-            this.clearData();
-        }
-    }
-
-    saveDataToStorage(data) {
-        try {
-            localStorage.setItem('smartspreadsheet_data', data);
-        } catch (error) {
-            console.error('Failed to save data to localStorage:', error);
+            if (!this.state.isProcessing) {
+                this.submitAutofill();
+            }
         }
     }
 
     loadSavedData() {
-        try {
-            const savedData = localStorage.getItem('smartspreadsheet_data');
-            if (savedData) {
-                document.getElementById('dataInput').value = savedData;
-                this.updateDataPreview(savedData);
-            }
-        } catch (error) {
-            console.error('Failed to load data from localStorage:', error);
-        }
+        // For now, just initialize with empty grid
+        // Could be extended to save/load grid state
     }
 
-    handleFileUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const content = e.target.result;
-            document.getElementById('dataInput').value = content;
-            this.updateDataPreview(content);
-            this.saveDataToStorage(content);
-            this.showToast(`File "${file.name}" loaded successfully!`, 'success');
-        };
-        reader.readAsText(file);
+    renderGrid() {
+        const gridContainer = document.getElementById('spreadsheetGrid');
+        let html = '<table class="grid-table">';
         
-        // Reset file input
-        event.target.value = '';
+        for (let r = 0; r < this.grid.rows; r++) {
+            html += '<tr>';
+            for (let c = 0; c < this.grid.cols; c++) {
+                const cellValue = this.grid.getCell(r, c) || '';
+                const isHeader = r === 0;
+                const isLabel = c === 0;
+                const isEditable = isHeader || isLabel;
+                const cellClass = isHeader ? 'header-cell' : isLabel ? 'label-cell' : 'data-cell';
+                
+                html += `<td class="${cellClass}" data-row="${r}" data-col="${c}">`;
+                if (isEditable) {
+                    html += `<input type="text" value="${cellValue}" placeholder="${isHeader ? 'Attribute...' : 'Item...'}" />`;
+                } else {
+                    html += `<span class="cell-content">${cellValue}</span>`;
+                }
+                html += '</td>';
+            }
+            html += '</tr>';
+        }
+        
+        html += '</table>';
+        gridContainer.innerHTML = html;
+        
+        // Add event listeners for editable cells
+        this.setupGridEventListeners();
+    }
+
+    setupGridEventListeners() {
+        const inputs = document.querySelectorAll('.grid-table input');
+        inputs.forEach(input => {
+            input.addEventListener('input', (e) => {
+                const row = parseInt(e.target.parentElement.dataset.row);
+                const col = parseInt(e.target.parentElement.dataset.col);
+                this.grid.setCell(row, col, e.target.value);
+            });
+        });
     }
 }
 
-// Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    window.app = new SmartSpreadsheetApp();
+// Initialize the app when the page loads
+document.addEventListener('DOMContentLoaded', async () => {
+    const app = new SmartSpreadsheetApp();
+    await app.initializeApp();
 }); 

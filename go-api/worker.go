@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	streamKey     = "sheet-jobs-stream"
-	consumerGroup = "cell-workers"
-	consumerName  = "worker-A"
+	streamKey         = "sheet-jobs-stream"
+	autofillStreamKey = "autofill-jobs-stream"
+	consumerGroup     = "cell-workers"
+	consumerName      = "worker-A"
 )
 
 // ChainRunnerRequest represents the request to the chain-runner service
@@ -37,7 +38,7 @@ type ChainRunnerResponse struct {
 // Create consumer group if it doesn't exist
 func setupConsumerGroup() error {
 	ctx := context.Background()
-	// Try to create the group; ignore BUSYGROUP error
+	// Try to create the group for sheet-jobs-stream; ignore BUSYGROUP error
 	cmd := redisClient.XGroupCreateMkStream(ctx, streamKey, consumerGroup, "$")
 	err := cmd.Err()
 	if err != nil && !isBusyGroupError(err) {
@@ -47,6 +48,17 @@ func setupConsumerGroup() error {
 		log.Printf("Created consumer group %s on stream %s", consumerGroup, streamKey)
 	} else {
 		log.Printf("Consumer group %s already exists on stream %s", consumerGroup, streamKey)
+	}
+	// Try to create the group for autofill-jobs-stream; ignore BUSYGROUP error
+	autoCmd := redisClient.XGroupCreateMkStream(ctx, autofillStreamKey, consumerGroup, "$")
+	autoErr := autoCmd.Err()
+	if autoErr != nil && !isBusyGroupError(autoErr) {
+		return fmt.Errorf("failed to create consumer group for autofill: %v", autoErr)
+	}
+	if autoErr == nil {
+		log.Printf("Created consumer group %s on stream %s", consumerGroup, autofillStreamKey)
+	} else {
+		log.Printf("Consumer group %s already exists on stream %s", consumerGroup, autofillStreamKey)
 	}
 	return nil
 }
@@ -103,16 +115,16 @@ func callChainRunner(sheetId string, row, col int, cellValue string) (*ChainRunn
 	return &response, nil
 }
 
-// Worker loop: read jobs from stream, process them, and store results
+// Worker loop: read jobs from both streams, process them, and store results
 func startWorkerLoop() {
 	ctx := context.Background()
 	log.Println("[WORKER] startWorkerLoop running...")
 	for {
-		// Read up to 10 jobs, block for 2 seconds if none
+		// Read up to 10 jobs from both streams, block for 2 seconds if none
 		streams, err := redisClient.XReadGroup(ctx, &redis.XReadGroupArgs{
 			Group:    consumerGroup,
 			Consumer: consumerName,
-			Streams:  []string{streamKey, ">"},
+			Streams:  []string{streamKey, autofillStreamKey, ">", ">"},
 			Count:    10,
 			Block:    2 * time.Second,
 		}).Result()
@@ -126,52 +138,106 @@ func startWorkerLoop() {
 		}
 		for _, stream := range streams {
 			for _, msg := range stream.Messages {
-				sheetId, _ := msg.Values["sheetId"].(string)
-				rowStr, _ := msg.Values["row"].(string)
-				colStr, _ := msg.Values["col"].(string)
-				cellValue, _ := msg.Values["cellValue"].(string)
-				row, _ := parseInt(rowStr)
-				col, _ := parseInt(colStr)
-
-				log.Printf("[WORKER] Processing job: sheetId=%s, row=%d, col=%d, cellValue=%s, msgID=%s",
-					sheetId, row, col, cellValue, msg.ID)
-
-				// Process the job by calling chain-runner
-				response, err := callChainRunner(sheetId, row, col, cellValue)
-				if err != nil {
-					log.Printf("[WORKER] Error processing job %s: %v", msg.ID, err)
-					// Still acknowledge the message to avoid reprocessing
-					redisClient.XAck(ctx, streamKey, consumerGroup, msg.ID)
-					continue
-				}
-
-				// Store result in Redis hash
-				resultKey := fmt.Sprintf("sheet:%s:results", sheetId)
-				fieldKey := fmt.Sprintf("%d:%d", row, col)
-				resultData := map[string]interface{}{
-					"result":    response.Result,
-					"trace_id":  response.TraceID,
-					"status":    "completed",
-					"timestamp": time.Now().Unix(),
-				}
-
-				// Convert to JSON for storage
-				resultJSON, _ := json.Marshal(resultData)
-				err = redisClient.HSet(ctx, resultKey, fieldKey, string(resultJSON)).Err()
-				if err != nil {
-					log.Printf("[WORKER] Failed to store result for job %s: %v", msg.ID, err)
+				if stream.Stream == autofillStreamKey {
+					processAutofillJob(ctx, msg)
 				} else {
-					log.Printf("[WORKER] Stored result for job %s: %s", msg.ID, response.Result[:50])
-				}
-
-				// Acknowledge the message
-				err = redisClient.XAck(ctx, streamKey, consumerGroup, msg.ID).Err()
-				if err != nil {
-					log.Printf("Failed to XACK message %s: %v", msg.ID, err)
+					processLegacyJob(ctx, msg)
 				}
 			}
 		}
 	}
+}
+
+func processAutofillJob(ctx context.Context, msg redis.XMessage) {
+	autofillId, _ := msg.Values["autofillId"].(string)
+	rowIndex, _ := parseInt(msg.Values["rowIndex"].(string))
+	colIndex, _ := parseInt(msg.Values["colIndex"].(string))
+	rowLabel, _ := msg.Values["rowLabel"].(string)
+	colLabel, _ := msg.Values["colLabel"].(string)
+
+	log.Printf("[WORKER] Processing autofill job: autofillId=%s, row=%d, col=%d, rowLabel=%s, colLabel=%s, msgID=%s",
+		autofillId, rowIndex, colIndex, rowLabel, colLabel, msg.ID)
+
+	promptTemplate := "What is the {attribute} of {item}?"
+	inputs := map[string]string{
+		"attribute": colLabel,
+		"item":      rowLabel,
+	}
+	request := ChainRunnerRequest{
+		PromptTemplate: promptTemplate,
+		Inputs:         inputs,
+	}
+	jsonData, _ := json.Marshal(request)
+	chainRunnerURL := os.Getenv("CHAIN_RUNNER_URL")
+	if chainRunnerURL == "" {
+		chainRunnerURL = "http://localhost:8000"
+	}
+	chainRunnerURL = fmt.Sprintf("%s/chain/run", chainRunnerURL)
+	resp, err := http.Post(chainRunnerURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("[WORKER] Error calling chain-runner: %v", err)
+		redisClient.XAck(ctx, autofillStreamKey, consumerGroup, msg.ID)
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[WORKER] chain-runner returned status %d: %s", resp.StatusCode, string(body))
+		redisClient.XAck(ctx, autofillStreamKey, consumerGroup, msg.ID)
+		return
+	}
+	var response ChainRunnerResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		log.Printf("[WORKER] Failed to unmarshal response: %v", err)
+		redisClient.XAck(ctx, autofillStreamKey, consumerGroup, msg.ID)
+		return
+	}
+	// Store result in autofill results hash
+	resultKey := fmt.Sprintf("autofill:%s:results", autofillId)
+	fieldKey := fmt.Sprintf("%d:%d", rowIndex, colIndex)
+	resultData := map[string]interface{}{
+		"result":    response.Result,
+		"trace_id":  response.TraceID,
+		"status":    "completed",
+		"timestamp": time.Now().Unix(),
+	}
+	resultJSON, _ := json.Marshal(resultData)
+	if err := redisClient.HSet(ctx, resultKey, fieldKey, string(resultJSON)).Err(); err != nil {
+		log.Printf("[WORKER] Failed to store autofill result: %v", err)
+	}
+	redisClient.XAck(ctx, autofillStreamKey, consumerGroup, msg.ID)
+}
+
+func processLegacyJob(ctx context.Context, msg redis.XMessage) {
+	sheetId, _ := msg.Values["sheetId"].(string)
+	rowStr, _ := msg.Values["row"].(string)
+	colStr, _ := msg.Values["col"].(string)
+	cellValue, _ := msg.Values["cellValue"].(string)
+	row, _ := parseInt(rowStr)
+	col, _ := parseInt(colStr)
+	log.Printf("[WORKER] Processing legacy job: sheetId=%s, row=%d, col=%d, cellValue=%s, msgID=%s",
+		sheetId, row, col, cellValue, msg.ID)
+	response, err := callChainRunner(sheetId, row, col, cellValue)
+	if err != nil {
+		log.Printf("[WORKER] Error processing job %s: %v", msg.ID, err)
+		redisClient.XAck(ctx, streamKey, consumerGroup, msg.ID)
+		return
+	}
+	resultKey := fmt.Sprintf("sheet:%s:results", sheetId)
+	fieldKey := fmt.Sprintf("%d:%d", row, col)
+	resultData := map[string]interface{}{
+		"result":    response.Result,
+		"trace_id":  response.TraceID,
+		"status":    "completed",
+		"timestamp": time.Now().Unix(),
+	}
+	resultJSON, _ := json.Marshal(resultData)
+	if err := redisClient.HSet(ctx, resultKey, fieldKey, string(resultJSON)).Err(); err != nil {
+		log.Printf("[WORKER] Failed to store result for job %s: %v", msg.ID, err)
+	} else {
+		log.Printf("[WORKER] Stored result for job %s: %s", msg.ID, response.Result[:50])
+	}
+	redisClient.XAck(ctx, streamKey, consumerGroup, msg.ID)
 }
 
 func parseInt(s string) (int, error) {

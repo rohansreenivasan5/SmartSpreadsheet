@@ -8,6 +8,9 @@ import (
 	"os"
 	"time"
 
+	"crypto/rand"
+	"encoding/hex"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -168,4 +171,57 @@ func testRedisConnection() error {
 
 	log.Println("Redis connection test passed")
 	return nil
+}
+
+// --- Autofill Types & Helpers ---
+type AutofillJob struct {
+	AutofillID string
+	RowIndex   int
+	ColIndex   int
+	RowLabel   string
+	ColLabel   string
+}
+
+func generateAutofillID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return "autofill_" + hex.EncodeToString(b)
+}
+
+func storeAutofillMeta(autofillID string, rows, cols []string) error {
+	ctx := context.Background()
+	meta := map[string]interface{}{
+		"rows": toJSON(rows),
+		"cols": toJSON(cols),
+	}
+	key := "autofill:" + autofillID + ":meta"
+	return redisClient.HSet(ctx, key, meta).Err()
+}
+
+func toJSON(v interface{}) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+func addAutofillJobToStream(job AutofillJob) error {
+	ctx := context.Background()
+	streamKey := "autofill-jobs-stream"
+	jobData := map[string]interface{}{
+		"autofillId": job.AutofillID,
+		"rowIndex":   job.RowIndex,
+		"colIndex":   job.ColIndex,
+		"rowLabel":   job.RowLabel,
+		"colLabel":   job.ColLabel,
+	}
+	_, err := redisClient.XAdd(ctx, &redis.XAddArgs{
+		Stream: streamKey,
+		Values: jobData,
+	}).Result()
+	return err
+}
+
+func getAutofillResults(autofillID string) (map[string]string, error) {
+	ctx := context.Background()
+	key := "autofill:" + autofillID + ":results"
+	return redisClient.HGetAll(ctx, key).Result()
 }

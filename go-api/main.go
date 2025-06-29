@@ -83,6 +83,10 @@ func main() {
 			sheets.POST("/:sheetId/run", handleSheetRun)
 			sheets.GET("/:sheetId/status", handleSheetStatus)
 		}
+
+		// Autofill endpoints
+		v1.POST("/autofill", handleAutofill)
+		v1.GET("/autofill/:id/status", handleAutofillStatus)
 	}
 
 	// Get port from environment or use default
