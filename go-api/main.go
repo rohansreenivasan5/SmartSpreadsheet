@@ -56,8 +56,8 @@ func main() {
 			"version": "1.0.0",
 			"endpoints": gin.H{
 				"health":     "/health",
-				"sheets":     "/api/v1/sheets",
 				"redis_test": "/api/v1/redis/test",
+				"autofill":   "/api/v1/autofill",
 			},
 		})
 	})
@@ -77,12 +77,6 @@ func main() {
 				"status": "Redis connection test passed",
 			})
 		})
-
-		sheets := v1.Group("/sheets")
-		{
-			sheets.POST("/:sheetId/run", handleSheetRun)
-			sheets.GET("/:sheetId/status", handleSheetStatus)
-		}
 
 		// Autofill endpoints
 		v1.POST("/autofill", handleAutofill)
