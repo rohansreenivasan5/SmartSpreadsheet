@@ -2,7 +2,7 @@
 class SmartSpreadsheetAPI {
     constructor() {
         this.baseURL = 'http://localhost:8080';
-        this.chainRunnerURL = 'http://localhost:8000';
+        this.chainRunnerURL = 'http://localhost:8000'; // deprecated
     }
 
     // Health check for Go API

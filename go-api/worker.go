@@ -1,14 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -21,19 +17,6 @@ const (
 	consumerGroup     = "cell-workers"
 	consumerName      = "worker-A"
 )
-
-// ChainRunnerRequest represents the request to the chain-runner service
-type ChainRunnerRequest struct {
-	PromptTemplate string            `json:"prompt_template"`
-	Inputs         map[string]string `json:"inputs"`
-}
-
-// ChainRunnerResponse represents the response from the chain-runner service
-type ChainRunnerResponse struct {
-	Result  string `json:"result"`
-	TraceID string `json:"trace_id"`
-	Error   string `json:"error,omitempty"`
-}
 
 // Create consumer group if it doesn't exist
 func setupConsumerGroup() error {
@@ -66,53 +49,6 @@ func setupConsumerGroup() error {
 func isBusyGroupError(err error) bool {
 	return err != nil && (err.Error() == "BUSYGROUP Consumer Group name already exists" ||
 		(err.Error() != "" && (len(err.Error()) > 8 && err.Error()[:8] == "BUSYGROUP")))
-}
-
-// Call chain-runner service
-func callChainRunner(sheetId string, row, col int, cellValue string) (*ChainRunnerResponse, error) {
-	// Create a simple template that uses the cell value
-	promptTemplate := "Analyze this spreadsheet cell value and provide insights: {cell_value}"
-	inputs := map[string]string{
-		"cell_value": cellValue,
-	}
-
-	request := ChainRunnerRequest{
-		PromptTemplate: promptTemplate,
-		Inputs:         inputs,
-	}
-
-	jsonData, err := json.Marshal(request)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %v", err)
-	}
-
-	// Make HTTP request to chain-runner
-	chainRunnerURL := os.Getenv("CHAIN_RUNNER_URL")
-	if chainRunnerURL == "" {
-		chainRunnerURL = "http://localhost:8000"
-	}
-	chainRunnerURL = fmt.Sprintf("%s/chain/run", chainRunnerURL)
-	resp, err := http.Post(chainRunnerURL, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to call chain-runner: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("chain-runner returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var response ChainRunnerResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %v", err)
-	}
-
-	return &response, nil
 }
 
 // Worker loop: read jobs from both streams, process them, and store results
@@ -158,37 +94,11 @@ func processAutofillJob(ctx context.Context, msg redis.XMessage) {
 	log.Printf("[WORKER] Processing autofill job: autofillId=%s, row=%d, col=%d, rowLabel=%s, colLabel=%s, msgID=%s",
 		autofillId, rowIndex, colIndex, rowLabel, colLabel, msg.ID)
 
-	promptTemplate := "What is the {attribute} of {item}?"
-	inputs := map[string]string{
-		"attribute": colLabel,
-		"item":      rowLabel,
-	}
-	request := ChainRunnerRequest{
-		PromptTemplate: promptTemplate,
-		Inputs:         inputs,
-	}
-	jsonData, _ := json.Marshal(request)
-	chainRunnerURL := os.Getenv("CHAIN_RUNNER_URL")
-	if chainRunnerURL == "" {
-		chainRunnerURL = "http://localhost:8000"
-	}
-	chainRunnerURL = fmt.Sprintf("%s/chain/run", chainRunnerURL)
-	resp, err := http.Post(chainRunnerURL, "application/json", bytes.NewBuffer(jsonData))
+	// Build concise prompt and call OpenAI directly
+	prompt := fmt.Sprintf("What is the %s of %s? Answer briefly.", colLabel, rowLabel)
+	text, err := callOpenAIChat(ctx, prompt)
 	if err != nil {
-		log.Printf("[WORKER] Error calling chain-runner: %v", err)
-		redisClient.XAck(ctx, autofillStreamKey, consumerGroup, msg.ID)
-		return
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("[WORKER] chain-runner returned status %d: %s", resp.StatusCode, string(body))
-		redisClient.XAck(ctx, autofillStreamKey, consumerGroup, msg.ID)
-		return
-	}
-	var response ChainRunnerResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		log.Printf("[WORKER] Failed to unmarshal response: %v", err)
+		log.Printf("[WORKER] OpenAI error: %v", err)
 		redisClient.XAck(ctx, autofillStreamKey, consumerGroup, msg.ID)
 		return
 	}
@@ -196,8 +106,8 @@ func processAutofillJob(ctx context.Context, msg redis.XMessage) {
 	resultKey := fmt.Sprintf("autofill:%s:results", autofillId)
 	fieldKey := fmt.Sprintf("%d:%d", rowIndex, colIndex)
 	resultData := map[string]interface{}{
-		"result":    response.Result,
-		"trace_id":  response.TraceID,
+		"result":    text,
+		"trace_id":  "",
 		"status":    "completed",
 		"timestamp": time.Now().Unix(),
 	}
@@ -217,7 +127,9 @@ func processLegacyJob(ctx context.Context, msg redis.XMessage) {
 	col, _ := parseInt(colStr)
 	log.Printf("[WORKER] Processing legacy job: sheetId=%s, row=%d, col=%d, cellValue=%s, msgID=%s",
 		sheetId, row, col, cellValue, msg.ID)
-	response, err := callChainRunner(sheetId, row, col, cellValue)
+
+	prompt := fmt.Sprintf("Analyze this spreadsheet cell value and provide insights: %s. Answer briefly.", cellValue)
+	text, err := callOpenAIChat(ctx, prompt)
 	if err != nil {
 		log.Printf("[WORKER] Error processing job %s: %v", msg.ID, err)
 		redisClient.XAck(ctx, streamKey, consumerGroup, msg.ID)
@@ -226,8 +138,8 @@ func processLegacyJob(ctx context.Context, msg redis.XMessage) {
 	resultKey := fmt.Sprintf("sheet:%s:results", sheetId)
 	fieldKey := fmt.Sprintf("%d:%d", row, col)
 	resultData := map[string]interface{}{
-		"result":    response.Result,
-		"trace_id":  response.TraceID,
+		"result":    text,
+		"trace_id":  "",
 		"status":    "completed",
 		"timestamp": time.Now().Unix(),
 	}
@@ -235,7 +147,11 @@ func processLegacyJob(ctx context.Context, msg redis.XMessage) {
 	if err := redisClient.HSet(ctx, resultKey, fieldKey, string(resultJSON)).Err(); err != nil {
 		log.Printf("[WORKER] Failed to store result for job %s: %v", msg.ID, err)
 	} else {
-		log.Printf("[WORKER] Stored result for job %s: %s", msg.ID, response.Result[:50])
+		preview := text
+		if len(preview) > 50 {
+			preview = preview[:50]
+		}
+		log.Printf("[WORKER] Stored result for job %s: %s", msg.ID, preview)
 	}
 	redisClient.XAck(ctx, streamKey, consumerGroup, msg.ID)
 }
