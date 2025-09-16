@@ -1,77 +1,52 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartSpreadsheet - AI-Powered Spreadsheet Analysis</title>
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SmartSpreadsheet</title>
+  <link rel="stylesheet" href="styles.css?v=reset2" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <h1 class="title">📊 SmartSpreadsheet</h1>
-                <p class="subtitle">AI-Powered Spreadsheet Analysis</p>
-                <div class="status-indicator" id="statusIndicator">
-                    <span class="status-dot"></span>
-                    <span class="status-text">Ready</span>
-                </div>
-            </div>
-        </header>
+  <div class="app">
+    <header class="app-bar">
+      <div class="app-bar-left">
+        <div class="app-title">SmartSpreadsheet</div>
+        <div class="status-indicator" id="statusIndicator">
+          <span class="status-dot"></span>
+          <span class="status-text">Ready</span>
+        </div>
+      </div>
+      <div class="toolbar" id="toolbar">
+        <button class="btn" id="addRowBtn">Add Row</button>
+        <button class="btn" id="addColBtn">Add Column</button>
+        <button class="btn" id="clearGridBtn">Clear</button>
+        <div class="toolbar-sep"></div>
+        <button class="btn btn-primary" id="submitBtn">
+          <span class="btn-text">Process</span>
+          <span class="btn-loading" style="display:none">Processing…</span>
+        </button>
+        <div class="job-info" id="jobInfo" style="display:none">
+          <span>Jobs: <span id="jobCount">0</span></span>
+          <span>Progress: <span id="jobProgress">0%</span></span>
+        </div>
+        <div class="toolbar-sep"></div>
+        <button class="btn" id="refreshBtn">Refresh</button>
+        <button class="btn" id="exportBtn">Export</button>
+      </div>
+    </header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Input Section -->
-            <section class="input-section">
-                <h2>🧮 Spreadsheet Input</h2>
-                <div class="input-controls">
-                    <button class="btn btn-secondary" id="addRowBtn">➕ Add Row</button>
-                    <button class="btn btn-secondary" id="addColBtn">➕ Add Column</button>
-                    <button class="btn btn-secondary" id="clearGridBtn">🗑️ Clear</button>
-                </div>
-                <div class="spreadsheet-grid" id="spreadsheetGrid"></div>
-                <div class="spreadsheet-hint">
-                    <p>Enter your items (e.g., company names) in the first column and attributes (e.g., "Industry", "CEO") in the first row. The AI will fill in the rest!</p>
-                </div>
-            </section>
+    <main class="sheet-viewport">
+      <section class="sheet" id="sheetRoot">
+        <div class="sheet-header" id="sheetHeader"></div>
+        <div class="sheet-body" id="spreadsheetGrid"></div>
+      </section>
+    </main>
 
-            <!-- Submit Section -->
-            <section class="submit-section">
-                <div class="submit-controls">
-                    <button class="btn btn-primary" id="submitBtn">
-                        <span class="btn-text">🚀 Process with AI</span>
-                        <span class="btn-loading" style="display: none;">⏳ Processing...</span>
-                    </button>
-                    <div class="job-info" id="jobInfo" style="display: none;">
-                        <span class="job-count">Jobs: <span id="jobCount">0</span></span>
-                        <span class="job-progress">Progress: <span id="jobProgress">0%</span></span>
-                    </div>
-                </div>
-            </section>
+    <div class="toast-container" id="toastContainer"></div>
+  </div>
 
-            <!-- Results Section -->
-            <section class="results-section" id="resultsSection" style="display: none;">
-                <h2>📈 AI Analysis Results</h2>
-                <div class="results-controls">
-                    <button class="btn btn-secondary" id="refreshBtn">🔄 Refresh</button>
-                    <button class="btn btn-secondary" id="exportBtn">📤 Export</button>
-                </div>
-                
-                <div class="results-container">
-                    <div class="results-table" id="resultsTable">
-                        <p class="no-results">Processing... Results will appear here.</p>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- Toast Notifications -->
-        <div class="toast-container" id="toastContainer"></div>
-    </div>
-
-    <script src="api.js?v=2"></script>
-    <script src="app.js?v=2"></script>
+  <script src="api.js?v=reset2"></script>
+  <script src="app.js?v=reset2"></script>
 </body>
-</html> 
+</html>

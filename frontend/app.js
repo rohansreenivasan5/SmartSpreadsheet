@@ -1,6 +1,6 @@
 // --- Spreadsheet Grid State ---
 class SpreadsheetGrid {
-    constructor(rows = 6, cols = 4) {
+    constructor(rows = 101, cols = 11) {
         // Initialize with empty first row/col
         this.rows = rows;
         this.cols = cols;
@@ -20,8 +20,8 @@ class SpreadsheetGrid {
     }
     
     clear() {
-        this.rows = 6;
-        this.cols = 4;
+        this.rows = 101;
+        this.cols = 11;
         this.data = Array.from({ length: this.rows }, (_, r) =>
             Array.from({ length: this.cols }, (_, c) => (r === 0 && c === 0 ? '' : ''))
         );
@@ -49,6 +49,7 @@ class SmartSpreadsheetApp {
             results: {}
         };
         this.grid = new SpreadsheetGrid();
+        this.selected = { row: null, col: null };
         this.renderGrid();
     }
 
@@ -141,6 +142,47 @@ class SmartSpreadsheetApp {
             
             // Keyboard shortcuts
             document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+
+            // Arrow key navigation and delete
+            document.addEventListener('keydown', (e) => {
+                if (this.selected.row == null || this.selected.col == null) return;
+                const { key } = e;
+                let { row, col } = this.selected;
+                if (key === 'ArrowUp') { e.preventDefault(); row = Math.max(1, row - 1); }
+                if (key === 'ArrowDown') { e.preventDefault(); row = Math.min(this.grid.rows - 1, row + 1); }
+                if (key === 'ArrowLeft') { e.preventDefault(); col = Math.max(1, col - 1); }
+                if (key === 'ArrowRight') { e.preventDefault(); col = Math.min(this.grid.cols - 1, col + 1); }
+                if (row !== this.selected.row || col !== this.selected.col) {
+                    this.setSelectedCell(row, col);
+                }
+                if (key === 'Delete' || key === 'Backspace') {
+                    e.preventDefault();
+                    this.grid.setCell(this.selected.row, this.selected.col, '');
+                    this.renderGrid();
+                }
+                if (key === 'Enter') {
+                    // future: edit mode
+                }
+            });
+
+            // Cell selection
+            const gridEl = document.getElementById('spreadsheetGrid');
+            gridEl.addEventListener('click', (e) => {
+                const cell = e.target.closest('.cell');
+                if (!cell) return;
+                const r = parseInt(cell.getAttribute('data-row'));
+                const c = parseInt(cell.getAttribute('data-col'));
+                this.setSelectedCell(r, c);
+            });
+
+            // Paste handling
+            document.addEventListener('paste', async (e) => {
+                if (this.selected.row == null || this.selected.col == null) return;
+                const text = (e.clipboardData || window.clipboardData).getData('text');
+                if (!text) return;
+                e.preventDefault();
+                await this.handlePaste(text);
+            });
             
         } catch (error) {
             console.error('Failed to set up event listeners:', error);
@@ -193,8 +235,6 @@ class SmartSpreadsheetApp {
                 completedJobs: 0,
                 results: {}
             });
-            
-            this.showToast(`Autofill started! Processing ${response.jobCount} cells...`, 'success');
             this.updateStatus('Processing...');
             
             // Show results section and start polling
@@ -241,7 +281,9 @@ class SmartSpreadsheetApp {
 
     showResultsSection(show) {
         const resultsSection = document.getElementById('resultsSection');
-        resultsSection.style.display = show ? 'block' : 'none';
+        if (resultsSection) {
+            resultsSection.style.display = show ? 'block' : 'none';
+        }
     }
 
     startPolling() {
@@ -281,7 +323,6 @@ class SmartSpreadsheetApp {
                 this.stopPolling();
                 this.setState({ isProcessing: false });
                 this.updateStatus('Complete');
-                this.showToast('Autofill completed!', 'success');
             }
             
         } catch (error) {
@@ -366,19 +407,14 @@ class SmartSpreadsheetApp {
     }
 
     showToast(message, type = 'success') {
+        if (type !== 'error') return;
         const toastContainer = document.getElementById('toastContainer');
+        if (!toastContainer) return;
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
         toast.textContent = message;
-        
         toastContainer.appendChild(toast);
-        
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-            }
-        }, 5000);
+        setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 5000);
     }
 
     handleKeyboardShortcuts(event) {
@@ -397,45 +433,130 @@ class SmartSpreadsheetApp {
     }
 
     renderGrid() {
-        const gridContainer = document.getElementById('spreadsheetGrid');
-        let html = '<table class="grid-table">';
-        
-        for (let r = 0; r < this.grid.rows; r++) {
-            html += '<tr>';
-            for (let c = 0; c < this.grid.cols; c++) {
-                const cellValue = this.grid.getCell(r, c) || '';
-                const isHeader = r === 0;
-                const isLabel = c === 0;
-                const isEditable = isHeader || isLabel;
-                const cellClass = isHeader ? 'header-cell' : isLabel ? 'label-cell' : 'data-cell';
-                
-                html += `<td class="${cellClass}" data-row="${r}" data-col="${c}">`;
-                if (isEditable) {
-                    html += `<input type="text" value="${cellValue}" placeholder="${isHeader ? 'Attribute...' : 'Item...'}" />`;
-                } else {
-                    html += `<span class="cell-content">${cellValue}</span>`;
-                }
-                html += '</td>';
-            }
-            html += '</tr>';
+        const body = document.getElementById('spreadsheetGrid');
+        const header = document.getElementById('sheetHeader');
+        // header render
+        let h = '<div class="header-index-spacer"></div>';
+        // editable header title for the first (label) column
+        const firstColTitle = this.grid.getCell(0, 0) || '';
+        h += `<div class="header-cell header-label" data-row="0" data-col="0"><input type="text" value="${firstColTitle}" placeholder="Title..." /></div>`;
+        for (let c = 1; c < this.grid.cols; c++) {
+            const val = this.grid.getCell(0, c) || '';
+            h += `<div class="header-cell" data-row="0" data-col="${c}"><input type="text" value="${val}" placeholder="Attribute..." /></div>`;
         }
-        
-        html += '</table>';
-        gridContainer.innerHTML = html;
-        
-        // Add event listeners for editable cells
+        header.innerHTML = h;
+        // set explicit template columns inline to avoid any CSS var issues
+        const dataCols = Math.max(1, this.grid.cols - 1);
+        header.style.display = 'grid';
+        header.style.gridTemplateColumns = `40px 160px ${Array(dataCols).fill('160px').join(' ')}`;
+
+        // body render
+        let b = '';
+        for (let r = 1; r < this.grid.rows; r++) {
+            const rowTemplate = `40px 160px ${Array(dataCols).fill('160px').join(' ')}`;
+            b += `<div class="row" style="display:grid;grid-template-columns:${rowTemplate}">`;
+            b += `<div class="row-index-cell">${r}</div>`;
+            const labelVal = this.grid.getCell(r, 0) || '';
+            b += `<div class="cell" data-row="${r}" data-col="0"><input class="label-input" type="text" value="${labelVal}" /></div>`;
+            for (let c = 1; c < this.grid.cols; c++) {
+                const val = this.grid.getCell(r, c) || '';
+                const isSelected = this.selected.row === r && this.selected.col === c;
+                b += `<div class="cell${isSelected ? ' selected' : ''}" data-row="${r}" data-col="${c}"><span class="cell-content">${val}</span></div>`;
+            }
+            b += '</div>';
+        }
+        body.innerHTML = b;
+
         this.setupGridEventListeners();
     }
 
     setupGridEventListeners() {
-        const inputs = document.querySelectorAll('.grid-table input');
+        const inputs = document.querySelectorAll('.sheet .header-cell input, .sheet .cell[data-col="0"] input');
         inputs.forEach(input => {
             input.addEventListener('input', (e) => {
-                const row = parseInt(e.target.parentElement.dataset.row);
-                const col = parseInt(e.target.parentElement.dataset.col);
+                const parent = e.target.closest('.header-cell, .cell');
+                const row = parseInt(parent.getAttribute('data-row'));
+                const col = parseInt(parent.getAttribute('data-col'));
                 this.grid.setCell(row, col, e.target.value);
             });
         });
+
+        // Minimal context menu for data cells
+        const grid = document.getElementById('spreadsheetGrid');
+        grid.addEventListener('contextmenu', (e) => {
+            const cell = e.target.closest('.cell');
+            if (!cell || cell.getAttribute('data-col') === '0') return;
+            e.preventDefault();
+            this.setSelectedCell(parseInt(cell.getAttribute('data-row')), parseInt(cell.getAttribute('data-col')));
+            const menu = this.buildContextMenu(e.pageX, e.pageY);
+            document.body.appendChild(menu);
+            const remove = () => menu.remove();
+            setTimeout(() => document.addEventListener('click', remove, { once: true }), 0);
+        });
+    }
+
+    buildContextMenu(x, y) {
+        const el = document.createElement('div');
+        el.style.position = 'absolute';
+        el.style.top = `${y}px`;
+        el.style.left = `${x}px`;
+        el.style.background = '#fff';
+        el.style.border = '1px solid #e6e8ee';
+        el.style.borderRadius = '8px';
+        el.style.boxShadow = '0 8px 16px rgba(16,24,40,0.08)';
+        el.style.padding = '6px';
+        el.style.zIndex = '1000';
+        const mk = (label, onClick) => {
+            const item = document.createElement('div');
+            item.textContent = label;
+            item.style.padding = '6px 10px';
+            item.style.fontSize = '12px';
+            item.style.cursor = 'pointer';
+            item.addEventListener('click', (e) => { e.stopPropagation(); onClick(); el.remove(); });
+            item.addEventListener('mouseenter', () => { item.style.background = '#f9fafb'; });
+            item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
+            return item;
+        };
+        el.appendChild(mk('Copy', () => this.copySelectedCell()));
+        el.appendChild(mk('Cut', () => { this.copySelectedCell(); this.grid.setCell(this.selected.row, this.selected.col, ''); this.renderGrid(); }));
+        el.appendChild(mk('Clear', () => { this.grid.setCell(this.selected.row, this.selected.col, ''); this.renderGrid(); }));
+        el.appendChild(mk('Export CSV', () => this.exportResults()));
+        return el;
+    }
+
+    copySelectedCell() {
+        if (this.selected.row == null || this.selected.col == null) return;
+        const val = this.grid.getCell(this.selected.row, this.selected.col) ?? '';
+        navigator.clipboard?.writeText(val).catch(() => {});
+    }
+
+    setSelectedCell(r, c) {
+        if (r < 1 || c < 1) return; // Only select data cells
+        this.selected = { row: r, col: c };
+        this.renderGrid();
+    }
+
+    async handlePaste(text) {
+        if (this.selected.row == null || this.selected.col == null) return;
+        const rows = text.replace(/\r/g, '').split('\n').filter(line => line.length > 0);
+        const data = rows.map(line => line.split('\t'));
+        const startR = this.selected.row;
+        const startC = this.selected.col;
+
+        // Ensure grid is large enough
+        const requiredRows = startR + data.length;
+        const requiredCols = startC + Math.max(...data.map(r => r.length));
+        while (this.grid.rows < requiredRows) this.grid.addRow();
+        while (this.grid.cols < requiredCols) this.grid.addCol();
+
+        // Apply
+        for (let i = 0; i < data.length; i++) {
+            for (let j = 0; j < data[i].length; j++) {
+                const val = data[i][j] ?? '';
+                this.grid.setCell(startR + i, startC + j, val);
+            }
+        }
+        this.renderGrid();
     }
 }
 

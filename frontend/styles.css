@@ -8,32 +8,14 @@
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     line-height: 1.6;
-    color: #333;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #1f2633;
+    background: #f2f4f7;
     min-height: 100vh;
 }
 
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-    min-height: 100vh;
-}
+/* remove legacy container styles */
 
-/* Header Styles */
-.header {
-    text-align: center;
-    margin-bottom: 40px;
-    padding: 30px 0;
-}
-
-.header-content {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    padding: 30px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-}
+/* remove legacy header cards */
 
 .title {
     font-size: 2.5rem;
@@ -73,11 +55,39 @@ body {
 }
 
 /* Main Content */
-.main-content {
-    display: flex;
-    flex-direction: column;
-    gap: 30px;
-}
+/* app shell */
+.app { height: 100vh; display: flex; flex-direction: column; }
+.app-bar { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #ffffff; border-bottom: 1px solid #e6e8ee; box-shadow: 0 2px 4px rgba(16,24,40,0.04); position: sticky; top: 0; z-index: 10; }
+.app-bar-left { display: flex; align-items: center; gap: 12px; }
+.app-title { font-weight: 600; font-size: 14px; }
+.toolbar { display: flex; align-items: center; gap: 8px; }
+.toolbar-sep { width: 1px; height: 22px; background: #e6e8ee; }
+.status-indicator { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; background: #f7fafc; border: 1px solid #e6e8ee; border-radius: 999px; font-size: 12px; font-weight: 500; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+.btn { padding: 8px 12px; border: 1px solid #e6e8ee; border-radius: 8px; background: #fff; font-size: 12px; color: #334155; }
+.btn:hover { background: #f9fafb; }
+.btn-primary { background: #1a73e8; border-color: #1a73e8; color: #fff; }
+.btn-primary:hover { background: #1967d2; }
+.job-info { display: inline-flex; gap: 10px; font-size: 12px; color: #475569; }
+
+.sheet-viewport { flex: 1; overflow: auto; background: #ffffff; }
+.sheet { min-width: 100%; background: #ffffff; }
+.sheet-header { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: 40px 160px repeat(var(--data-cols, 10), 160px); background: #ffffff; border-bottom: 1px solid #e6e8ee; box-shadow: 0 1px 2px rgba(16,24,40,0.04); }
+.header-index-spacer { width: 40px; }
+.header-label { width: 160px; border-right: 1px solid #e6e8ee; }
+.sheet-body { display: grid; grid-auto-rows: auto; }
+.row { display: grid; grid-template-columns: 40px 160px repeat(var(--data-cols, 10), 160px); border-bottom: 1px solid #e6e8ee; }
+.row:hover { background: #fbfcfe; }
+.row-index-cell, .header-index-spacer { position: sticky; left: 0; z-index: 3; width: 40px; display: flex; align-items: center; justify-content: center; color: #6b7280; border-right: 1px solid #e6e8ee; background: #ffffff; font-size: 12px; }
+.row-index-cell { padding: 0; }
+.cell[data-col="0"] { padding-left: 8px; }
+.row { grid-template-columns: 40px 160px repeat(auto-fill, 160px); }
+.header-cell { font-weight: 600; color: #475569; font-size: 12px; display: flex; align-items: center; padding: 0 10px; border-right: 1px solid #e6e8ee; }
+.cell { display: flex; align-items: center; padding: 0 10px; font-size: 12px; border-right: 1px solid #e6e8ee; background: #ffffff; position: relative; }
+.cell.selected { outline: 2px solid rgba(26,115,232,1); outline-offset: -2px; background: rgba(26,115,232,0.06); }
+.cell input, .header-cell input { width: 100%; height: 20px; border: none; outline: none; background: transparent; font: inherit; }
+.cell input:focus, .header-cell input:focus { outline: 2px solid rgba(26,115,232,0.6); outline-offset: -2px; }
+.header-cell input::placeholder, .cell .label-input::placeholder { color: #9aa3b2; }
 
 /* Section Styles */
 .input-section,
@@ -415,3 +425,56 @@ body {
     font-size: 0.95rem;
     text-align: left;
 } 
+
+/* New Excel-like app layout and grid */
+.app { height: 100vh; display: flex; flex-direction: column; }
+.app-bar { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #ffffff; border-bottom: 1px solid #e6e8ee; box-shadow: 0 2px 4px rgba(16,24,40,0.04); position: sticky; top: 0; z-index: 10; }
+.app-bar-left { display: flex; align-items: center; gap: 12px; }
+.app-title { font-weight: 600; font-size: 14px; }
+.app-bar-right { display: flex; align-items: center; }
+.toolbar { display: flex; align-items: center; gap: 8px; }
+.toolbar-sep { width: 1px; height: 22px; background: #e6e8ee; margin: 0 4px; }
+.sheet-viewport { flex: 1; overflow: auto; }
+.sheet-container { min-width: 100%; background: #ffffff; }
+.status-indicator { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; background: #f7fafc; border: 1px solid #e6e8ee; border-radius: 999px; font-size: 12px; font-weight: 500; }
+.status-dot { background: #22c55e; }
+
+.spreadsheet-grid { margin: 12px; background: #ffffff; }
+.sheet-header { position: sticky; top: 0; z-index: 2; display: grid; grid-auto-flow: column; grid-auto-columns: 160px; background: #ffffff; border-bottom: 1px solid #e6e8ee; box-shadow: 0 1px 2px rgba(16,24,40,0.04); }
+.header-cell { font-weight: 600; color: #475569; font-size: 12px; }
+.sheet-body { display: grid; grid-auto-rows: 28px; }
+.row { display: grid; grid-auto-flow: column; grid-auto-columns: 160px; border-bottom: 1px solid #e6e8ee; }
+.row:hover { background: #fbfcfe; }
+.cell, .header-cell, .row-index-cell { display: flex; align-items: center; min-height: 28px; padding: 0 10px; font-size: 12px; position: relative; background: #ffffff; }
+.header-cell { font-weight: 600; border-right: 1px solid #e6e8ee; }
+.cell { border-right: 1px solid #e6e8ee; align-items: flex-start; padding-top: 6px; padding-bottom: 6px; }
+.row-index-cell { position: sticky; left: 0; z-index: 1; width: 40px; justify-content: center; align-items: flex-start; padding-top: 6px; color: #6b7280; border-right: 1px solid #e6e8ee; background: #ffffff; }
+.row:hover .row-index-cell { color: #1f2633; }
+.cell.selected { outline: 2px solid rgba(26,115,232,1); outline-offset: -2px; background: rgba(26,115,232,0.06); }
+.cell input, .header-cell input { width: 100%; min-height: 20px; border: none; outline: none; font: inherit; background: transparent; }
+.cell-content { white-space: pre-wrap; word-break: break-word; line-height: 1.3; }
+.sheet .header-cell input::placeholder, .sheet .cell .label-input::placeholder { color: #9aa3b2; }
+.sheet .header-cell input, .sheet .cell .label-input { padding: 0; margin: 0; }
+.cell input:focus, .header-cell input:focus { outline: 2px solid rgba(26,115,232,0.6); outline-offset: -2px; }
+.spreadsheet-hint { margin: 8px 12px; color: #64748b; font-size: 12px; }
+
+/* --- Overrides to remove old gradient and pill buttons --- */
+body { background: #f2f4f7 !important; color: #1f2633 !important; }
+.app .btn { padding: 8px 12px; border: 1px solid #e6e8ee; border-radius: 8px; font-size: 12px; font-weight: 500; background: #ffffff; color: #334155; box-shadow: none; }
+.app .btn:hover { background: #f9fafb; }
+.app .btn-primary { background: #1a73e8; border-color: #1a73e8; color: #ffffff; }
+.app .btn-primary:hover { background: #1967d2; }
+.app .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Inputs should look seamless inside cells */
+.sheet .header-cell input::placeholder, .sheet .cell .label-input::placeholder { color: #9aa3b2; }
+.sheet .header-cell input, .sheet .cell .label-input { padding: 0; margin: 0; }
+
+/* Subtle outer bottom border so grid feels grounded */
+.sheet { border-bottom: 1px solid #e6e8ee; }
+
+/* Final overrides to ensure multi-line cell content expands rows */
+.sheet-body { grid-auto-rows: minmax(28px, auto) !important; }
+.cell { align-items: flex-start !important; padding-top: 6px !important; padding-bottom: 6px !important; }
+.row-index-cell { align-items: flex-start !important; padding-top: 6px !important; }
+.cell-content { white-space: pre-wrap !important; word-break: break-word !important; line-height: 1.3 !important; }
